@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Aguacongas.AspNetCore.Authentication.EntityFramework\Aguacongas.AspNetCore.Authentication.EntityFramework.csproj" />
+    <ProjectReference Include="..\..\src\Aguacongas.AspNetCore.Authentication.Persistence\Aguacongas.AspNetCore.Authentication.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Aguacongas.AspNetCore.Authentication.TestBase\Aguacongas.AspNetCore.Authentication.TestBase.csproj" />
   </ItemGroup>
 

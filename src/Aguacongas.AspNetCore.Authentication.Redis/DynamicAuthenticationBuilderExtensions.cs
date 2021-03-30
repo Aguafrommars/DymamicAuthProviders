@@ -1,7 +1,9 @@
 ﻿// Project: aguacongas/DymamicAuthProviders
 // Copyright (c) 2021 @Olivier Lefebvre
 using Aguacongas.AspNetCore.Authentication;
+using Aguacongas.AspNetCore.Authentication.Persistence;
 using Aguacongas.AspNetCore.Authentication.Redis;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -122,19 +124,23 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <param name="getDatabase">A function returning a <see cref="IDatabase"/></param>
         /// <returns>The <see cref="DynamicAuthenticationBuilder"/></returns>
         public static DynamicAuthenticationBuilder AddRedisStore<TSchemeDefinition>(this DynamicAuthenticationBuilder builder, Func<IServiceProvider, IDatabase> getDatabase)
-            where TSchemeDefinition: SchemeDefinition, new()
+            where TSchemeDefinition : SchemeDefinition, new()
         {
             var services = builder.Services;
 
-            services.AddTransient<ISchemeDefinitionSerializer<TSchemeDefinition>, SchemeDefinitionSerializer<TSchemeDefinition>>();
-            services.AddTransient<IDynamicProviderStore<TSchemeDefinition>>(provider =>
+            services.TryAddTransient<ISchemeDefinitionSerializer<TSchemeDefinition>, SchemeDefinitionSerializer<TSchemeDefinition>>();
+            services.TryAddTransient<DynamicProviderStore<TSchemeDefinition>>(provider =>
             {
                 var db = getDatabase(provider);
                 var serializer = provider.GetRequiredService<ISchemeDefinitionSerializer<TSchemeDefinition>>();
                 var logger = provider.GetRequiredService<ILogger<DynamicProviderStore<TSchemeDefinition>>>();
+                var eventHandler = provider.GetRequiredService<IDynamicProviderUpdatedEventHandler>();
 
-                return new DynamicProviderStore<TSchemeDefinition>(db, serializer, logger);
+                return new DynamicProviderStore<TSchemeDefinition>(db, serializer, eventHandler, logger);
             });
+            services.TryAddTransient<IDynamicProviderStore>(sp => sp.GetRequiredService<DynamicProviderStore<TSchemeDefinition>>());
+            services.TryAddTransient<IDynamicProviderMutationStore<TSchemeDefinition>>(sp => sp.GetRequiredService<DynamicProviderStore<TSchemeDefinition>>());
+            services.TryAddTransient<IDynamicProviderUpdatedEventHandler, InProcDynamicProviderUpdatedEventHandler>();
             return builder;
         }
         private static RedisLogger CreateLogger(IServiceProvider provider)

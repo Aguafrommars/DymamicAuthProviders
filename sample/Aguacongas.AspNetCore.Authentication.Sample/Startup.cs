@@ -54,8 +54,8 @@ namespace Aguacongas.AspNetCore.Authentication.Sample
 
             // Add the magic
             var dynamicBuilder = authBuilder
-                .AddDynamic<SchemeDefinition>()
-                .AddEntityFrameworkStore<SchemeDbContext>();
+                .AddDynamicAuthentication()
+                .AddEntityFrameworkStore();
 
             // Add providers handlers managed dynamically
             dynamicBuilder
@@ -94,7 +94,7 @@ namespace Aguacongas.AspNetCore.Authentication.Sample
                             context.RunClaimActions(doc.RootElement);
                         }
                     };
-                }); 
+                });
 
             services.AddMvc(options => options.EnableEndpointRouting = false);
         }
@@ -124,7 +124,7 @@ namespace Aguacongas.AspNetCore.Authentication.Sample
                         template: "{controller=Home}/{action=Index}/{id?}");
                 })
                 // load dynamyc authentication configuration from store
-                .LoadDynamicAuthenticationConfiguration<SchemeDefinition>();
+                .UseDynamicAuthenticationConfiguration();
         }
     }
 }

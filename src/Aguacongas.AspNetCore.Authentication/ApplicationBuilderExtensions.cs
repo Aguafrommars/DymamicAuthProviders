@@ -3,6 +3,8 @@
 using Aguacongas.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Microsoft.AspNetCore.Builder
 {
@@ -14,31 +16,29 @@ namespace Microsoft.AspNetCore.Builder
         /// <summary>
         /// Loads the dynamic authentication configuration.
         /// </summary>
-        /// <typeparam name="TDefinition">The type of the definition.</typeparam>
-        /// <param name="builder">The builder.</param>
+        /// <param name="provider">The provider.</param>
         /// <returns></returns>
-        public static IApplicationBuilder LoadDynamicAuthenticationConfiguration<TDefinition>(this IApplicationBuilder builder)
-            where TDefinition: SchemeDefinitionBase, new()
+        public static IServiceProvider LoadDynamicAuthenticationConfiguration(this IServiceProvider provider)
         {
-            builder.ApplicationServices.LoadDynamicAuthenticationConfiguration<TDefinition>();
-            return builder;
+            using (var scope = provider.CreateScope())
+            {
+                var manager = scope.ServiceProvider.GetRequiredService<AuthenticationSchemeProviderWrapper>();
+                var store = scope.ServiceProvider.GetService<IDynamicProviderStore>();
+                var schemes = store?.GetSchemeDefinitionsAsync().ToListAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+                manager.InitializeAsync(schemes).ConfigureAwait(false).GetAwaiter().GetResult();
+            }
+            return provider;
         }
 
         /// <summary>
         /// Loads the dynamic authentication configuration.
         /// </summary>
-        /// <typeparam name="TDefinition">The type of the definition.</typeparam>
-        /// <param name="provider">The provider.</param>
+        /// <param name="builder">The builder.</param>
         /// <returns></returns>
-        public static IServiceProvider LoadDynamicAuthenticationConfiguration<TDefinition>(this IServiceProvider provider)
-            where TDefinition : SchemeDefinitionBase, new()
+        public static IApplicationBuilder UseDynamicAuthenticationConfiguration(this IApplicationBuilder builder)
         {
-            using (var scope = provider.CreateScope())
-            {
-                var manager = scope.ServiceProvider.GetRequiredService<PersistentDynamicManager<TDefinition>>();
-                manager.Load();
-            }
-            return provider;
+            builder.ApplicationServices.LoadDynamicAuthenticationConfiguration();
+            return builder;
         }
     }
 }

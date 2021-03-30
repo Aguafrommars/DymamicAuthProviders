@@ -32,6 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Aguacongas.AspNetCore.Authentication.Persistence\Aguacongas.AspNetCore.Authentication.Persistence.csproj" />
     <ProjectReference Include="..\Aguacongas.AspNetCore.Authentication\Aguacongas.AspNetCore.Authentication.csproj" />
   </ItemGroup>
 

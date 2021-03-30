@@ -13,8 +13,11 @@ namespace System
         /// Gets the type of the authentication scheme options.
         /// </summary>
         /// <param name="handlerType">Type of the handler.</param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentException">Parameter handlerType should be a <see cref="AuthenticationHandler{AuthenticationSchemeOptions}"/>}</exception>
+        /// <returns>The type of the authentication scheme options.</returns>
+        /// <exception cref="ArgumentException">
+        /// Parameter handlerType should be a <see
+        /// cref="AuthenticationHandler{AuthenticationSchemeOptions}" />}.
+        /// </exception>
         public static Type GetAuthenticationSchemeOptionsType(this Type handlerType)
         {
             if (handlerType.GetInterface(nameof(IAuthenticationHandler)) == null)

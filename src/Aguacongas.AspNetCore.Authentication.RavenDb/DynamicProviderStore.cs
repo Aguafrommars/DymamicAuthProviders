@@ -1,19 +1,22 @@
 ﻿// Project: aguacongas/DymamicAuthProviders
 // Copyright (c) 2021 @Olivier Lefebvre
+using Aguacongas.AspNetCore.Authentication.Persistence;
 using Microsoft.Extensions.Logging;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Aguacongas.AspNetCore.Authentication.RavenDb
 {
     /// <summary>
-    /// Implement a store for <see cref="NoPersistentDynamicManager{TSchemeDefinition}"/> with EntityFramework.
+    /// Implement a store for <see cref="IDynamicProviderMutationStore{TSchemeDefinition}"/> with EntityFramework.
     /// </summary>
-    /// <seealso cref="IDynamicProviderStore{TSchemeDefinition}" />
+    /// <seealso cref="IDynamicProviderStore" />
     public class DynamicProviderStore : DynamicProviderStore<SchemeDefinition>
     {
         /// <summary>
@@ -21,40 +24,35 @@ namespace Aguacongas.AspNetCore.Authentication.RavenDb
         /// </summary>
         /// <param name="session">The document session.</param>
         /// <param name="authenticationSchemeOptionsSerializer">The authentication scheme options serializer.</param>
+        /// <param name="providerUpdatedEventHandler">The event handler</param>
         /// <param name="logger">The logger.</param>
-        public DynamicProviderStore(IAsyncDocumentSession session, IAuthenticationSchemeOptionsSerializer authenticationSchemeOptionsSerializer, ILogger<DynamicProviderStore> logger) : base(session, authenticationSchemeOptionsSerializer, logger)
+        public DynamicProviderStore(IAsyncDocumentSession session,
+            IAuthenticationSchemeOptionsSerializer authenticationSchemeOptionsSerializer,
+            IDynamicProviderUpdatedEventHandler providerUpdatedEventHandler,
+            ILogger<DynamicProviderStore> logger) : base(session, authenticationSchemeOptionsSerializer, providerUpdatedEventHandler, logger)
         {
         }
     }
 
     /// <summary>
-    /// Implement a store for <see cref="NoPersistentDynamicManager{TSchemeDefinition}"/> with EntityFramework.
+    /// Implement a store for <see cref="IDynamicProviderMutationStore{TSchemeDefinition}"/> with EntityFramework.
     /// </summary>
     /// <typeparam name="TSchemeDefinition">The type of the definition.</typeparam>
-    public class DynamicProviderStore<TSchemeDefinition> : IDynamicProviderStore<TSchemeDefinition>
+    public class DynamicProviderStore<TSchemeDefinition> : IDynamicProviderStore, IDynamicProviderMutationStore<TSchemeDefinition>
         where TSchemeDefinition : SchemeDefinition, new()
     {
         private readonly IAsyncDocumentSession _session;
         private readonly IAuthenticationSchemeOptionsSerializer _authenticationSchemeOptionsSerializer;
+        private readonly IDynamicProviderUpdatedEventHandler _providerUpdatedEventHandler;
         private readonly ILogger<DynamicProviderStore<TSchemeDefinition>> _logger;
         private readonly string _entitybasePath;
-
-        /// <summary>
-        /// Gets the scheme definitions list.
-        /// </summary>
-        /// <value>
-        /// The scheme definitions list.
-        /// </value>
-        public virtual IQueryable<TSchemeDefinition> SchemeDefinitions => _session.Query<TSchemeDefinition>()
-            .ToListAsync().ConfigureAwait(false).GetAwaiter().GetResult()
-            .Select(Deserialize)
-            .AsQueryable();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DynamicProviderStore{TSchemeDefinition}"/> class.
         /// </summary>
         /// <param name="session">The document session.</param>
         /// <param name="authenticationSchemeOptionsSerializer">The authentication scheme options serializer.</param>
+        /// <param name="providerUpdatedEventHandler">The event handler</param>
         /// <param name="logger">The logger.</param>
         /// <exception cref="ArgumentNullException">
         /// context
@@ -63,10 +61,14 @@ namespace Aguacongas.AspNetCore.Authentication.RavenDb
         /// or
         /// logger
         /// </exception>
-        public DynamicProviderStore(IAsyncDocumentSession session, IAuthenticationSchemeOptionsSerializer authenticationSchemeOptionsSerializer, ILogger<DynamicProviderStore<TSchemeDefinition>> logger)
+        public DynamicProviderStore(IAsyncDocumentSession session,
+            IAuthenticationSchemeOptionsSerializer authenticationSchemeOptionsSerializer,
+            IDynamicProviderUpdatedEventHandler providerUpdatedEventHandler,
+            ILogger<DynamicProviderStore<TSchemeDefinition>> logger)
         {
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _authenticationSchemeOptionsSerializer = authenticationSchemeOptionsSerializer ?? throw new ArgumentNullException(nameof(authenticationSchemeOptionsSerializer));
+            _providerUpdatedEventHandler = providerUpdatedEventHandler ?? throw new ArgumentNullException(nameof(providerUpdatedEventHandler));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _entitybasePath = typeof(TSchemeDefinition).Name.ToLower() + "/";
         }
@@ -81,14 +83,31 @@ namespace Aguacongas.AspNetCore.Authentication.RavenDb
         public virtual async Task AddAsync(TSchemeDefinition definition, CancellationToken cancellationToken = default)
         {
             definition = definition ?? throw new ArgumentNullException(nameof(definition));
-            
+
             cancellationToken.ThrowIfCancellationRequested();
 
             var data = Serialize(definition);
             await _session.StoreAsync(data, $"{_entitybasePath}{definition.Scheme}", cancellationToken).ConfigureAwait(false);
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
+            await _providerUpdatedEventHandler.HandleAsync(new DynamicProviderUpdatedEvent(DynamicProviderUpdateType.Added, definition)).ConfigureAwait(false);
+
             _logger.LogInformation("Scheme {scheme} added for {handlerType} with options: {options}", definition.Scheme, definition.HandlerType, data.SerializedOptions);
+        }
+
+        /// <summary>
+        /// Gets the scheme definitions list.
+        /// </summary>
+        /// <returns>
+        /// The scheme definitions list.
+        /// </returns>
+        public async IAsyncEnumerable<ISchemeDefinition> GetSchemeDefinitionsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var items = await _session.Query<TSchemeDefinition>().ToListAsync(cancellationToken);
+            foreach (var item in items)
+            {
+                yield return Deserialize(item);
+            }
         }
 
         /// <summary>
@@ -101,12 +120,13 @@ namespace Aguacongas.AspNetCore.Authentication.RavenDb
         public virtual async Task RemoveAsync(TSchemeDefinition definition, CancellationToken cancellationToken = default)
         {
             definition = definition ?? throw new ArgumentNullException(nameof(definition));
-            
+
             cancellationToken.ThrowIfCancellationRequested();
 
             var data = await _session.LoadAsync<TSchemeDefinition>($"{_entitybasePath}{definition.Scheme}", cancellationToken).ConfigureAwait(false);
             _session.Delete(data);
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _providerUpdatedEventHandler.HandleAsync(new DynamicProviderUpdatedEvent(DynamicProviderUpdateType.Removed, definition)).ConfigureAwait(false);
 
             _logger.LogInformation("Scheme {scheme} removed", definition.Scheme);
         }
@@ -121,11 +141,11 @@ namespace Aguacongas.AspNetCore.Authentication.RavenDb
         public virtual async Task UpdateAsync(TSchemeDefinition definition, CancellationToken cancellationToken = default)
         {
             definition = definition ?? throw new ArgumentNullException(nameof(definition));
-            
+
             cancellationToken.ThrowIfCancellationRequested();
 
             var serialized = Serialize(definition);
-            
+
             var data = await _session.LoadAsync<TSchemeDefinition>($"{_entitybasePath}{definition.Scheme}", cancellationToken).ConfigureAwait(false);
 
             data.SerializedOptions = serialized.SerializedOptions;
@@ -137,6 +157,7 @@ namespace Aguacongas.AspNetCore.Authentication.RavenDb
             data.Options = null;
 
             await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _providerUpdatedEventHandler.HandleAsync(new DynamicProviderUpdatedEvent(DynamicProviderUpdateType.Updated, definition)).ConfigureAwait(false);
 
             definition.HandlerType = handlerType;
             definition.Options = options;
@@ -187,11 +208,11 @@ namespace Aguacongas.AspNetCore.Authentication.RavenDb
         }
 
         private TSchemeDefinition Deserialize(TSchemeDefinition data)
-        {            
+        {
             var handlerType = _authenticationSchemeOptionsSerializer.DeserializeType(data.SerializedHandlerType);
             data.HandlerType = handlerType;
             data.Options = _authenticationSchemeOptionsSerializer.DeserializeOptions(data.SerializedOptions, handlerType.GetAuthenticationSchemeOptionsType());
             return data;
-        }        
+        }
     }
 }

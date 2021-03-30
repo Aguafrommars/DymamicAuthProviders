@@ -1,18 +1,20 @@
 ﻿// Project: aguacongas/DymamicAuthProviders
 // Copyright (c) 2021 @Olivier Lefebvre
+using Aguacongas.AspNetCore.Authentication.Persistence;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using System;
-using System.Linq;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Aguacongas.AspNetCore.Authentication.Redis
 {
     /// <summary>
-    /// Implement a store for <see cref="NoPersistentDynamicManager{TSchemeDefinition}"/> with EntityFramework.
+    /// Implement a store for <see cref="IDynamicProviderMutationStore{TSchemeDefinition}"/> with EntityFramework.
     /// </summary>
-    /// <seealso cref="IDynamicProviderStore{TSchemeDefinition}" />
+    /// <seealso cref="IDynamicProviderStore" />
     public class DynamicProviderStore : DynamicProviderStore<SchemeDefinition>
     {
         /// <summary>
@@ -20,18 +22,23 @@ namespace Aguacongas.AspNetCore.Authentication.Redis
         /// </summary>
         /// <param name="db">The Redis db.</param>
         /// <param name="authenticationSchemeOptionsSerializer">The authentication scheme options serializer.</param>
+        /// <param name="providerUpdatedEventHandler">The event handler</param>
         /// <param name="logger">The logger.</param>
-        public DynamicProviderStore(IDatabase db, ISchemeDefinitionSerializer<SchemeDefinition> authenticationSchemeOptionsSerializer, ILogger<DynamicProviderStore> logger) : base(db, authenticationSchemeOptionsSerializer, logger)
+        public DynamicProviderStore(IDatabase db, 
+            ISchemeDefinitionSerializer<SchemeDefinition> authenticationSchemeOptionsSerializer,
+            IDynamicProviderUpdatedEventHandler providerUpdatedEventHandler,
+            ILogger<DynamicProviderStore> logger) : 
+            base(db, authenticationSchemeOptionsSerializer, providerUpdatedEventHandler, logger)
         {
         }
     }
 
     /// <summary>
-    /// Implement a store for <see cref="NoPersistentDynamicManager{TSchemeDefinition}"/> with EntityFramework.
+    /// Implement a store for <see cref="IDynamicProviderMutationStore{TSchemeDefinition}"/> with EntityFramework.
     /// </summary>
     /// <typeparam name="TSchemeDefinition">The type of the definition.</typeparam>
-    /// <seealso cref="IDynamicProviderStore{TSchemeDefinition}" />
-    public class DynamicProviderStore<TSchemeDefinition> : IDynamicProviderStore<TSchemeDefinition>
+    /// <seealso cref="IDynamicProviderStore" />
+    public class DynamicProviderStore<TSchemeDefinition> : IDynamicProviderStore, IDynamicProviderMutationStore<TSchemeDefinition>
         where TSchemeDefinition : SchemeDefinition, new()
     {
         /// <summary>
@@ -45,24 +52,16 @@ namespace Aguacongas.AspNetCore.Authentication.Redis
 
         private readonly IDatabase _db;
         private readonly ISchemeDefinitionSerializer<TSchemeDefinition> _authenticationSchemeOptionsSerializer;
+        private readonly IDynamicProviderUpdatedEventHandler _providerUpdatedEventHandler;
         private readonly ILogger<DynamicProviderStore<TSchemeDefinition>> _logger;
 
-
-        /// <summary>
-        /// Gets the scheme definitions list.
-        /// </summary>
-        /// <value>
-        /// The scheme definitions list.
-        /// </value>
-        public IQueryable<TSchemeDefinition> SchemeDefinitions => _db.HashGetAll(StoreKey)
-            .Select(entry => _authenticationSchemeOptionsSerializer.Deserialize(entry.Value))
-            .AsQueryable();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DynamicProviderStore{TSchemeDefinition}" /> class.
         /// </summary>
         /// <param name="db">The Redis db.</param>
         /// <param name="authenticationSchemeOptionsSerializer">The authentication scheme options serializer.</param>
+        /// <param name="providerUpdatedEventHandler">The event handler</param>
         /// <param name="logger">The logger.</param>
         /// <exception cref="ArgumentNullException">
         /// db
@@ -76,10 +75,14 @@ namespace Aguacongas.AspNetCore.Authentication.Redis
         /// authenticationSchemeOptionsSerializer
         /// or
         /// logger</exception>
-        public DynamicProviderStore(IDatabase db, ISchemeDefinitionSerializer<TSchemeDefinition> authenticationSchemeOptionsSerializer, ILogger<DynamicProviderStore<TSchemeDefinition>> logger)
+        public DynamicProviderStore(IDatabase db,
+            ISchemeDefinitionSerializer<TSchemeDefinition> authenticationSchemeOptionsSerializer,
+            IDynamicProviderUpdatedEventHandler providerUpdatedEventHandler,
+            ILogger<DynamicProviderStore<TSchemeDefinition>> logger)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _authenticationSchemeOptionsSerializer = authenticationSchemeOptionsSerializer ?? throw new ArgumentNullException(nameof(authenticationSchemeOptionsSerializer));
+            _providerUpdatedEventHandler = providerUpdatedEventHandler ?? throw new ArgumentNullException(nameof(providerUpdatedEventHandler));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -109,8 +112,25 @@ namespace Aguacongas.AspNetCore.Authentication.Redis
                 throw new InvalidOperationException($"The scheme {definition.Scheme} already exists");
             }
 
+            await _providerUpdatedEventHandler.HandleAsync(new DynamicProviderUpdatedEvent(DynamicProviderUpdateType.Added, definition)).ConfigureAwait(false);
             _logger.LogInformation("Scheme {scheme} added for {handlerType} with options: {options}", definition.Scheme, definition.HandlerType, definition.SerializedOptions);
         }
+
+        /// <summary>
+        /// Gets the scheme definitions list.
+        /// </summary>
+        /// <value>
+        /// The scheme definitions list.
+        /// </value>
+        public async IAsyncEnumerable<ISchemeDefinition> GetSchemeDefinitionsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var items = await _db.HashGetAllAsync(StoreKey).ConfigureAwait(false);
+            foreach (var item in items)
+            {
+                yield return _authenticationSchemeOptionsSerializer.Deserialize(item.Value);
+            }
+        }
+
 
         /// <summary>
         /// Finds scheme definition by scheme asynchronous.
@@ -161,6 +181,7 @@ namespace Aguacongas.AspNetCore.Authentication.Redis
                 throw new InvalidOperationException($"ConcurrencyStamp not match for scheme {definition.Scheme}");
             }
 
+            await _providerUpdatedEventHandler.HandleAsync(new DynamicProviderUpdatedEvent(DynamicProviderUpdateType.Removed, definition)).ConfigureAwait(false);
             _logger.LogInformation("Scheme {scheme} removed", definition.Scheme);
         }
 
@@ -192,6 +213,7 @@ namespace Aguacongas.AspNetCore.Authentication.Redis
 
             definition.ConcurrencyStamp = concurency.Result;
 
+            await _providerUpdatedEventHandler.HandleAsync(new DynamicProviderUpdatedEvent(DynamicProviderUpdateType.Updated, definition)).ConfigureAwait(false);
             _logger.LogInformation("Scheme {scheme} updated for {handlerType} with options: {options}", definition.Scheme, definition.HandlerType, definition.SerializedOptions);
         }
 

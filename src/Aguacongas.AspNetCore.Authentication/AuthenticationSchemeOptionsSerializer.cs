@@ -10,47 +10,30 @@ using System.Reflection;
 namespace Aguacongas.AspNetCore.Authentication
 {
     /// <summary>
-    /// Manage <see cref="AuthenticationSchemeOptions"/> serialization.
+    /// Manage <see cref="AuthenticationSchemeOptions" /> serialization.
     /// </summary>
-    /// <seealso cref="Aguacongas.AspNetCore.Authentication.IAuthenticationSchemeOptionsSerializer" />
+    /// <seealso cref="IAuthenticationSchemeOptionsSerializer" />
     public class AuthenticationSchemeOptionsSerializer : IAuthenticationSchemeOptionsSerializer
     {
         /// <summary>
         /// Gets or sets the json serializer settings.
         /// </summary>
-        /// <value>
-        /// The json serializer settings.
-        /// </value>
+        /// <value>The json serializer settings.</value>
         public static JsonSerializerSettings JsonSerializerSettings { get; } = new JsonSerializerSettings
         {
             NullValueHandling = NullValueHandling.Ignore,
             ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
             Formatting = Formatting.None,
             DefaultValueHandling = DefaultValueHandling.Ignore,
-            ContractResolver = new ContractResolver()
+            ContractResolver = new StrictSerializationContractResolver()
         };
-
-        /// <summary>
-        /// Serializes the specified options.
-        /// </summary>
-        /// <param name="options">The options.</param>
-        /// <param name="optionsType">Type of the options.</param>
-        /// <returns>
-        /// The serialized result.
-        /// </returns>
-        public virtual string SerializeOptions(AuthenticationSchemeOptions options, Type optionsType)
-        {
-            return Serialize(options, optionsType);
-        }
 
         /// <summary>
         /// Deserializes the specified value.
         /// </summary>
         /// <param name="value">The value.</param>
         /// <param name="optionsType">Type of the options.</param>
-        /// <returns>
-        /// An AuthenticationSchemeOptions instance.
-        /// </returns>
+        /// <returns>An AuthenticationSchemeOptions instance.</returns>
         public virtual AuthenticationSchemeOptions DeserializeOptions(string value, Type optionsType)
         {
             return Deserialize(value, optionsType) as AuthenticationSchemeOptions;
@@ -67,6 +50,17 @@ namespace Aguacongas.AspNetCore.Authentication
         }
 
         /// <summary>
+        /// Serializes the specified options.
+        /// </summary>
+        /// <param name="options">The options.</param>
+        /// <param name="optionsType">Type of the options.</param>
+        /// <returns>The serialized result.</returns>
+        public virtual string SerializeOptions(AuthenticationSchemeOptions options, Type optionsType)
+        {
+            return Serialize(options, optionsType);
+        }
+
+        /// <summary>
         /// Serializes the type.
         /// </summary>
         /// <param name="type">The type.</param>
@@ -74,6 +68,17 @@ namespace Aguacongas.AspNetCore.Authentication
         public virtual string SerializeType(Type type)
         {
             return Serialize(CreateTypeDefinition(type), typeof(Type));
+        }
+
+        /// <summary>
+        /// Deserializes the specified value.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <param name="type">The type.</param>
+        /// <returns></returns>
+        protected virtual object Deserialize(string value, Type type)
+        {
+            return JsonConvert.DeserializeObject(value, type, JsonSerializerSettings);
         }
 
         /// <summary>
@@ -87,15 +92,23 @@ namespace Aguacongas.AspNetCore.Authentication
             return JsonConvert.SerializeObject(value, type, JsonSerializerSettings);
         }
 
-        /// <summary>
-        /// Deserializes the specified value.
-        /// </summary>
-        /// <param name="value">The value.</param>
-        /// <param name="type">The type.</param>
-        /// <returns></returns>
-        protected virtual object Deserialize(string value, Type type)
+        private TypeDefinition CreateTypeDefinition(Type type)
         {
-            return JsonConvert.DeserializeObject(value, type, JsonSerializerSettings);
+            if (type.IsGenericType)
+            {
+                var genericType = type.GetGenericTypeDefinition();
+                return new TypeDefinition
+                {
+                    Name = genericType.FullName,
+                    ArgsTypeDefinition = type
+                       .GetGenericArguments().Select(CreateTypeDefinition).ToArray()
+                };
+            }
+
+            return new TypeDefinition
+            {
+                Name = type.FullName
+            };
         }
 
         private Type GetType(string typeName)
@@ -121,30 +134,10 @@ namespace Aguacongas.AspNetCore.Authentication
             return GetType(typeDefinition.Name);
         }
 
-        private TypeDefinition CreateTypeDefinition(Type type)
+        private class TypeDefinition
         {
-            if (type.IsGenericType)
-            {
-                var genericType = type.GetGenericTypeDefinition();
-                return new TypeDefinition
-                {
-                    Name = genericType.FullName,
-                    ArgsTypeDefinition = type
-                       .GetGenericArguments().Select(CreateTypeDefinition).ToArray()
-                };
-            }
-
-            return new TypeDefinition
-            {
-                Name = type.FullName
-            };
-        }
-
-        class TypeDefinition
-        {
-            public string Name { get; set; }
-
             public TypeDefinition[] ArgsTypeDefinition { get; set; }
+            public string Name { get; set; }
         }
     }
 }

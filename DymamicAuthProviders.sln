@@ -46,7 +46,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Aguacongas.AspNetCore.Authe
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Aguacongas.AspNetCore.Authentication.RavenDb", "src\Aguacongas.AspNetCore.Authentication.RavenDb\Aguacongas.AspNetCore.Authentication.RavenDb.csproj", "{227C6C5A-5297-4C02-938A-61BA88C42DEE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aguacongas.AspNetCore.Authentication.RavenDb.Test", "test\Aguacongas.AspNetCore.Authentication.RavenDb.Test\Aguacongas.AspNetCore.Authentication.RavenDb.Test.csproj", "{50BA6357-C8CF-4E23-A27C-26406300D165}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Aguacongas.AspNetCore.Authentication.RavenDb.Test", "test\Aguacongas.AspNetCore.Authentication.RavenDb.Test\Aguacongas.AspNetCore.Authentication.RavenDb.Test.csproj", "{50BA6357-C8CF-4E23-A27C-26406300D165}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aguacongas.AspNetCore.Authentication.Persistence", "src\Aguacongas.AspNetCore.Authentication.Persistence\Aguacongas.AspNetCore.Authentication.Persistence.csproj", "{0D5D4CDA-94BB-4928-A46B-696126359A81}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -94,6 +96,10 @@ Global
 		{50BA6357-C8CF-4E23-A27C-26406300D165}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{50BA6357-C8CF-4E23-A27C-26406300D165}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{50BA6357-C8CF-4E23-A27C-26406300D165}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0D5D4CDA-94BB-4928-A46B-696126359A81}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0D5D4CDA-94BB-4928-A46B-696126359A81}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0D5D4CDA-94BB-4928-A46B-696126359A81}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0D5D4CDA-94BB-4928-A46B-696126359A81}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -109,6 +115,7 @@ Global
 		{87CFA3EF-2A15-4861-A6DC-C74E9CA3EBCE} = {8DE53FA4-6C58-4FE4-840C-8CD5D5370324}
 		{227C6C5A-5297-4C02-938A-61BA88C42DEE} = {245AA4AB-ECF4-4C69-B63D-C59D4B3F918C}
 		{50BA6357-C8CF-4E23-A27C-26406300D165} = {8DE53FA4-6C58-4FE4-840C-8CD5D5370324}
+		{0D5D4CDA-94BB-4928-A46B-696126359A81} = {245AA4AB-ECF4-4C69-B63D-C59D4B3F918C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {823D9407-93C0-443E-89EC-D9DBB006A195}

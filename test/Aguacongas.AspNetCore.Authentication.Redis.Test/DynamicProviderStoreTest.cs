@@ -1,5 +1,6 @@
 ﻿// Project: aguacongas/DymamicAuthProviders
 // Copyright (c) 2021 @Olivier Lefebvre
+using Aguacongas.AspNetCore.Authentication.Persistence;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -26,12 +27,14 @@ namespace Aguacongas.AspNetCore.Authentication.Redis.Test
         [Fact]
         public async Task Assertions()
         {
-            Assert.Throws<ArgumentNullException>(() => new DynamicProviderStore<SchemeDefinition>(null, null, null));
+            Assert.Throws<ArgumentNullException>(() => new DynamicProviderStore<SchemeDefinition>(null, null, null, null));
             var databaseMock = new Mock<IDatabase>().Object;
-            Assert.Throws<ArgumentNullException>(() => new DynamicProviderStore<SchemeDefinition>(databaseMock, null, null));
-            Assert.Throws<ArgumentNullException>(() => new DynamicProviderStore<SchemeDefinition>(databaseMock, new SchemeDefinitionSerializer<SchemeDefinition>(), null));
+            Assert.Throws<ArgumentNullException>(() => new DynamicProviderStore<SchemeDefinition>(databaseMock, null, null, null));
+            Assert.Throws<ArgumentNullException>(() => new DynamicProviderStore<SchemeDefinition>(databaseMock, new SchemeDefinitionSerializer<SchemeDefinition>(), null, null));
+            var eventHandlerMock = new Mock<IDynamicProviderUpdatedEventHandler>().Object;
+            Assert.Throws<ArgumentNullException>(() => new DynamicProviderStore<SchemeDefinition>(databaseMock, new SchemeDefinitionSerializer<SchemeDefinition>(), eventHandlerMock, null));
             var loggerMock = new Mock<ILogger<DynamicProviderStore<SchemeDefinition>>>().Object;
-            var store = new DynamicProviderStore<SchemeDefinition>(databaseMock, new SchemeDefinitionSerializer<SchemeDefinition>(), loggerMock);
+            var store = new DynamicProviderStore<SchemeDefinition>(databaseMock, new SchemeDefinitionSerializer<SchemeDefinition>(), eventHandlerMock, loggerMock);
             await Assert.ThrowsAsync<ArgumentNullException>(() => store.AddAsync(null));
             await Assert.ThrowsAsync<ArgumentNullException>(() => store.UpdateAsync(null));
             await Assert.ThrowsAsync<ArgumentNullException>(() => store.RemoveAsync(null));
@@ -65,7 +68,7 @@ namespace Aguacongas.AspNetCore.Authentication.Redis.Test
 
         public DynamicProviderStore CreateStore(IDatabase database)
         {
-            return new DynamicProviderStore(database, new SchemeDefinitionSerializer<SchemeDefinition>(), new Mock<ILogger<DynamicProviderStore>>().Object);
+            return new DynamicProviderStore(database, new SchemeDefinitionSerializer<SchemeDefinition>(), new Mock<IDynamicProviderUpdatedEventHandler>().Object, new Mock<ILogger<DynamicProviderStore>>().Object);
         }
         public IDatabase CreateDabase()
         {

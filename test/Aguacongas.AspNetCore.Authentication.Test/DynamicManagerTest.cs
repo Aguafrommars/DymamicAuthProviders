@@ -9,54 +9,32 @@ using Xunit;
 
 namespace Aguacongas.AspNetCore.Authentication.Test
 {
-    public class PersistentDynamicManagerTest
+    public class AuthenticationSchemeProviderWrapperTest
     {
         [Fact]
         public async Task Assertions()
         {
-            Assert.Throws<ArgumentNullException>(() => new PersistentDynamicManager<FakeSchemeDefinition>(null, null, null, null));
+            Assert.Throws<ArgumentNullException>(() => new AuthenticationSchemeProviderWrapper(null, null, null));
             var schemeProviderMock = new Mock<IAuthenticationSchemeProvider>().Object;
-            Assert.Throws<ArgumentNullException>(() => new PersistentDynamicManager<FakeSchemeDefinition>(schemeProviderMock, null, null, null));
+            Assert.Throws<ArgumentNullException>(() => new AuthenticationSchemeProviderWrapper(schemeProviderMock, null, null));
             var serviceProviderMock = new Mock<IServiceProvider>().Object;
             var factory = new OptionsMonitorCacheWrapperFactory(serviceProviderMock);
-            Assert.Throws<ArgumentNullException>(() => new PersistentDynamicManager<FakeSchemeDefinition>(schemeProviderMock, factory, null, null));
-            var storeMock = new Mock<IDynamicProviderStore<FakeSchemeDefinition>>().Object;
-            var manager = new PersistentDynamicManager<FakeSchemeDefinition>(schemeProviderMock, factory, storeMock, new List<Type>());
+            Assert.Throws<ArgumentNullException>(() => new AuthenticationSchemeProviderWrapper(schemeProviderMock, factory, null));
+            var storeMock = new Mock<IDynamicProviderStore>().Object;
+            var manager = new AuthenticationSchemeProviderWrapper(schemeProviderMock, factory, new List<Type>());
             await Assert.ThrowsAsync<ArgumentNullException>(() => manager.AddAsync(null));
             await Assert.ThrowsAsync<ArgumentNullException>(() => manager.UpdateAsync(null));
             await Assert.ThrowsAsync<ArgumentException>(() => manager.RemoveAsync(null));
             await Assert.ThrowsAsync<ArgumentException>(() => manager.RemoveAsync(""));
             await Assert.ThrowsAsync<ArgumentException>(() => manager.RemoveAsync("  "));
-            await Assert.ThrowsAsync<ArgumentException>(() => manager.FindBySchemeAsync(null));
-            await Assert.ThrowsAsync<ArgumentException>(() => manager.FindBySchemeAsync(""));
-            await Assert.ThrowsAsync<ArgumentException>(() => manager.FindBySchemeAsync("  "));
         }
     }
-
-    public class DynamicManagerTest
+    public class FakeSchemeDefinition : ISchemeDefinition
     {
-        [Fact]
-        public async Task Assertions()
-        {
-            Assert.Throws<ArgumentNullException>(() => new NoPersistentDynamicManager<FakeSchemeDefinition>(null, null, null));
-            var schemeProviderMock = new Mock<IAuthenticationSchemeProvider>().Object;
-            Assert.Throws<ArgumentNullException>(() => new NoPersistentDynamicManager<FakeSchemeDefinition>(schemeProviderMock, null, null));
-            var serviceProviderMock = new Mock<IServiceProvider>().Object;
-            var factory = new OptionsMonitorCacheWrapperFactory(serviceProviderMock);
-            Assert.Throws<ArgumentNullException>(() => new NoPersistentDynamicManager<FakeSchemeDefinition>(schemeProviderMock, factory, null));
-            var storeMock = new Mock<IDynamicProviderStore<FakeSchemeDefinition>>().Object;
-            var manager = new PersistentDynamicManager<FakeSchemeDefinition>(schemeProviderMock, factory, storeMock, new List<Type>());
-            await Assert.ThrowsAsync<ArgumentNullException>(() => manager.AddAsync(null));
-            await Assert.ThrowsAsync<ArgumentNullException>(() => manager.UpdateAsync(null));
-            await Assert.ThrowsAsync<ArgumentException>(() => manager.RemoveAsync(null));
-            await Assert.ThrowsAsync<ArgumentException>(() => manager.RemoveAsync(""));
-            await Assert.ThrowsAsync<ArgumentException>(() => manager.RemoveAsync("  "));
-            await Assert.ThrowsAsync<ArgumentException>(() => manager.FindBySchemeAsync(null));
-            await Assert.ThrowsAsync<ArgumentException>(() => manager.FindBySchemeAsync(""));
-            await Assert.ThrowsAsync<ArgumentException>(() => manager.FindBySchemeAsync("  "));
-        }
+        public string DisplayName { get; set; }
+        public Type HandlerType { get; set; }
+        public AuthenticationSchemeOptions Options { get; set; }
+        public string Scheme { get; set; }
     }
-    public class FakeSchemeDefinition : SchemeDefinitionBase
-    { }
 
 }
